@@ -1,6 +1,6 @@
 # Bogotwin: datos vivos
 
-Este repo solo publica los datos que cambian cada pocos minutos de [Bogotwin](https://github.com/caamanoluismiguel/gemelo-bogota), un gemelo digital abierto e independiente de Bogotá,(https://github.com/caamanoluismiguel/gemelo-bogota). No guarda historia: cada 20 minutos una Action trae el código del repo principal, arma `cielo/ahora.json` y lo publica en GitHub Pages sin hacer commit.
+Este repo solo publica los datos que cambian cada pocos minutos de [Bogotwin](https://github.com/caamanoluismiguel/gemelo-bogota), un gemelo digital abierto e independiente de Bogotá. No guarda historia: cada 20 minutos una Action trae el código del repo principal, arma `cielo/ahora.json` y lo publica en GitHub Pages sin hacer commit.
 
 - Datos: https://caamanoluismiguel.github.io/gemelo-bogota-vivo/cielo/ahora.json
 - Código que los arma: `pipelines/cielo/cielo.py` en el repo principal.
