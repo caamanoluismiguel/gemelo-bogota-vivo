@@ -1,0 +1,185 @@
+# Cosecha de datos vivos de Bogotwin. Arma y publica en GitHub Pages, SIN commit de datos:
+#   cielo/       tarjeta «el cielo de Bogotá ahora»   cada 20 min
+#   bicis/       bicicletas compartidas (GBFS 3.0)     cada 10 min
+#   pronostico/  pronóstico a 48 h y su acierto        cada hora; el acierto una vez al día
+#   aire/        PM2,5 de CAMS a 5 días                cada hora
+#   indice.json  cada archivo con bytes, sha256 y hora
+#
+# Motor: el Worker gemelo-bogota-asistente (repo principal, worker/src/cosecha.ts) lanza
+# este workflow cada 10 minutos con workflow_dispatch. vigia.yml lo relanza si el Worker
+# falla. No hay cron aquí: GitHub se saltaba el 97 % de las corridas programadas.
+#
+# deploy-pages reemplaza el sitio entero. Por eso cada corrida recupera primero lo
+# publicado (recuperar.py, con sha256) y, si no puede, NO publica: el sitio anterior queda.
+# Cada parte decide sola si le toca según la edad de su archivo.
+#
+# Días cerrados (bicis y pronósticos emitidos) van como activos de Releases mensuales con
+# sha256. A git solo entra el manifiesto mensual, como mucho una vez al día.
+#
+# Minutos: unas 144 corridas al día de 2 a 3 min cobrados. En repo público son gratis
+# (docs.github.com/billing). Este repo debe seguir público.
+name: cosecha
+
+on:
+  workflow_dispatch:
+    inputs:
+      motor:
+        description: "Quién lanza la corrida"
+        required: false
+        default: "manual"
+
+permissions: {}
+
+concurrency:
+  group: cosecha
+  cancel-in-progress: false
+
+jobs:
+  armar:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    permissions:
+      contents: write   # Releases de días cerrados y manifiesto mensual
+    env:
+      MOTOR: ${{ inputs.motor || github.event_name }}
+      GH_TOKEN: ${{ github.token }}
+    outputs:
+      cielo: ${{ steps.cielo.outcome }}
+      bicis: ${{ steps.bicis.outcome }}
+      pronostico: ${{ steps.pronostico.outcome }}
+      acierto: ${{ steps.acierto.outcome }}
+      releases: ${{ steps.releases.outcome }}
+    steps:
+      - name: Traer el código del gemelo
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: caamanoluismiguel/gemelo-bogota
+          path: codigo
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Traer este repo (manifiestos)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: vivo
+          fetch-depth: 1
+
+      - name: Recuperar lo publicado
+        run: |
+          echo "COMMIT_CODIGO=$(git -C codigo rev-parse HEAD)" >> "$GITHUB_ENV"
+          python3 --version
+          python3 -I codigo/pipelines/vivo/recuperar.py --salida _site
+          mkdir -p _cierres vivo/manifiestos
+
+      - name: Cielo (cada 20 min)
+        id: cielo
+        continue-on-error: true
+        run: |
+          if ! python3 -I codigo/pipelines/vivo/toca.py _site/cielo/ahora.json 20; then
+            echo "Todavía no toca."; exit 0
+          fi
+          mkdir -p _site/cielo
+          python3 -I codigo/pipelines/cielo/cielo.py --salida _site/cielo --anterior _site/cielo/ahora.json
+          tam=$(stat -c %s _site/cielo/ahora.json)
+          if [ "$tam" -gt 51200 ]; then echo "::error::cielo/ahora.json pesa $tam bytes, más de 50 KB"; exit 1; fi
+
+      - name: Bicicletas (cada 10 min)
+        id: bicis
+        continue-on-error: true
+        run: python3 -I codigo/pipelines/bicis/bicis.py --sitio _site --cierres _cierres --manifiestos vivo/manifiestos
+
+      - name: Pronóstico y aire (cada hora)
+        id: pronostico
+        continue-on-error: true
+        run: python3 -I codigo/pipelines/pronostico/pronostico.py --sitio _site --cierres _cierres --manifiestos vivo/manifiestos
+
+      - name: Acierto del pronóstico (una vez al día)
+        id: acierto
+        continue-on-error: true
+        run: python3 -I codigo/pipelines/pronostico/acierto.py --sitio _site
+
+      - name: Subir días cerrados a las Releases
+        id: releases
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          for dir in _cierres/*/; do
+            tag=$(basename "$dir")
+            if ! gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+              gh release create "$tag" --repo "$GITHUB_REPOSITORY" --target main --latest=false \
+                --title "$tag" \
+                --notes "Días cerrados de $tag. Un archivo por día de Bogotá (ndjson.gz). Huellas sha256, fuente, licencia y corrida en manifiestos/$tag.json. Formato en el README."
+            fi
+            ya=$(gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json assets -q '.assets[].name')
+            for f in "$dir"*; do
+              n=$(basename "$f")
+              if grep -qxF "$n" <<<"$ya"; then echo "$tag/$n ya estaba"; continue; fi
+              gh release upload "$tag" "$f" --repo "$GITHUB_REPOSITORY"
+              echo "$tag/$n subido"
+            done
+          done
+
+      - name: Commit del manifiesto (solo si se subió un día)
+        if: steps.releases.outcome == 'success'
+        working-directory: vivo
+        run: |
+          git add manifiestos/
+          if git diff --cached --quiet; then echo "Sin días nuevos."; exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "chore(datos): manifiesto de días cerrados $(TZ=America/Bogota date +%F)"
+          for intento in 1 2 3; do
+            if git push origin HEAD:main; then exit 0; fi
+            git pull --rebase origin main
+            sleep $((intento * 5))
+          done
+          echo "::error::No se pudo hacer push del manifiesto"; exit 1
+
+      - name: Índice
+        run: python3 -I codigo/pipelines/vivo/indice.py --sitio _site
+
+      - name: Subir el artefacto de Pages
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: _site
+
+  publicar:
+    needs: armar
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.despliegue.outputs.page_url }}
+    steps:
+      - name: Publicar en Pages
+        id: despliegue
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
+
+  avisar:
+    # Se publica lo que salió bien; si una parte falló, la corrida queda en rojo para enterarse.
+    needs: [armar, publicar]
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    permissions: {}
+    steps:
+      - name: Revisar las partes
+        env:
+          CIELO: ${{ needs.armar.outputs.cielo }}
+          BICIS: ${{ needs.armar.outputs.bicis }}
+          PRONOSTICO: ${{ needs.armar.outputs.pronostico }}
+          ACIERTO: ${{ needs.armar.outputs.acierto }}
+          RELEASES: ${{ needs.armar.outputs.releases }}
+          ARMAR: ${{ needs.armar.result }}
+          PUBLICAR: ${{ needs.publicar.result }}
+        run: |
+          echo "armar=$ARMAR publicar=$PUBLICAR cielo=$CIELO bicis=$BICIS pronostico=$PRONOSTICO acierto=$ACIERTO releases=$RELEASES"
+          mal=0
+          for v in "$CIELO" "$BICIS" "$PRONOSTICO" "$ACIERTO" "$RELEASES"; do [ "$v" = "failure" ] && mal=1; done
+          [ "$ARMAR" != "success" ] && mal=1
+          [ "$PUBLICAR" != "success" ] && mal=1
+          exit $mal

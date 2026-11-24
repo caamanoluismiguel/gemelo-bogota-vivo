@@ -1,0 +1,43 @@
+# Vigía de la cosecha. El motor es el Worker de Cloudflare (cada 10 min). Este cron es
+# el respaldo: cuando GitHub lo corre (lo atrasa y se salta muchas), mira la edad de
+# indice.json, que se reescribe en cada cosecha publicada. Si pasa de 20 minutos (el doble
+# de la cadencia de bicis) y no hay una cosecha en cola o corriendo, la relanza.
+name: vigia
+
+on:
+  schedule:
+    - cron: "4,19,34,49 * * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: vigia
+  cancel-in-progress: true
+
+jobs:
+  mirar:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    permissions:
+      actions: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      URL: https://caamanoluismiguel.github.io/gemelo-bogota-vivo/indice.json
+    steps:
+      - name: Mirar la edad y relanzar si hace falta
+        run: |
+          set -uo pipefail
+          generado=$(curl -fsS --max-time 20 "$URL?t=$(date +%s)" | python3 -I -c 'import json,sys; print(json.load(sys.stdin).get("generado",""))' || true)
+          if [ -n "$generado" ]; then
+            edad=$(( ( $(date -u +%s) - $(date -u -d "$generado" +%s) ) / 60 ))
+          else
+            edad=9999
+          fi
+          echo "indice.json generado $generado, edad $edad min"
+          if [ "$edad" -le 20 ]; then echo "Al día."; exit 0; fi
+          activas=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow cosecha.yml --limit 5 \
+            --json status -q '[.[] | select(.status=="queued" or .status=="in_progress" or .status=="waiting" or .status=="pending")] | length')
+          if [ "${activas:-0}" -gt 0 ]; then echo "Ya hay $activas cosecha(s) en marcha."; exit 0; fi
+          echo "::warning::Datos con $edad min; la vigía relanza la cosecha."
+          gh workflow run cosecha.yml --repo "$GITHUB_REPOSITORY" --ref main -f motor=vigia-github
