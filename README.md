@@ -157,6 +157,7 @@ Califica cada día de Bogotá cerrado, un día después, contra el METAR de El D
 - `a24h`: la emisión hecha entre 24 y 29 h antes de cada hora; `a48h`: entre 48 y 54 h antes.
 - Temperatura: `error_medio_c` es el promedio del error absoluto; `sesgo_c` el promedio con signo (positivo: el pronóstico se pasó de caliente). El METAR redondea a grados enteros.
 - Lluvia: bloques de 6 h. Dijo «sí» si alguna hora tiene 50 % o más; llovió si algún METAR o SPECI del bloque reporta precipitación en la estación (sin contar VC). Se necesitan 4 reportes en el bloque.
+- Antes del primer día calificado el archivo ya existe con `dias: []`, conteos en 0 y porcentajes y errores en `null`.
 - `porcentaje` en `null` quiere decir que todavía no hay bloques calificados. Los primeros días calificados aparecen dos días después de que empieza la cosecha.
 
 ## `aire/pronostico.json`, esquema `bogotwin/aire/1`
@@ -177,7 +178,7 @@ Califica cada día de Bogotá cerrado, un día después, contra el METAR de El D
 }
 ```
 
-- Un solo valor por hora para toda la ciudad, 120 horas desde la hora en curso. La celda de CAMS mide unos 45 km: no sirve por barrio ni por localidad y no se pinta por barrio.
+- Un solo valor por hora para toda la ciudad, desde la hora en curso hasta donde llegue la última corrida de CAMS, como mucho 120 horas. El 24 nov 2026 a las 18:40 de Bogotá llegaba a 110 horas. La celda de CAMS mide unos 45 km: no sirve por barrio ni por localidad y no se pinta por barrio.
 - No hay marcador de acierto: lo medido de la RMCAB no declara licencia. No es un índice oficial ni una alerta.
 
 ## `manifiestos/<release>.json`
