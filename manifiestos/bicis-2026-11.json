@@ -1,0 +1,24 @@
+{
+  "esquema": "bogotwin/manifiesto/1",
+  "release": "bicis-2026-11",
+  "url_release": "https://github.com/caamanoluismiguel/gemelo-bogota-vivo/releases/tag/bicis-2026-11",
+  "archivos": [
+    {
+      "nombre": "bicis-2026-11-24.ndjson.gz",
+      "fecha_bogota": "2026-11-24",
+      "bytes": 22430,
+      "sha256": "4da745f2a27a5e128c7e7e18909637d814d9cc6fa0a3e810321a233a115bab30",
+      "filas": 32,
+      "filas_esperadas": 144,
+      "fuente": "https://bogota.publicbikesystem.net/customer/gbfs/v3.0/",
+      "licencia": "CC0 1.0",
+      "script": "pipelines/bicis/bicis.py (repo gemelo-bogota)",
+      "corrida": {
+        "motor": "worker-cloudflare",
+        "registro": "https://github.com/caamanoluismiguel/gemelo-bogota-vivo/actions/runs/45550644986",
+        "commit_codigo": "4de79a83b1056531ebc3e507b2dd05f832f98d47"
+      },
+      "url": "https://github.com/caamanoluismiguel/gemelo-bogota-vivo/releases/download/bicis-2026-11/bicis-2026-11-24.ndjson.gz"
+    }
+  ]
+}
