@@ -23,12 +23,14 @@ Base: `https://caamanoluismiguel.github.io/gemelo-bogota-vivo/`
 | `cielo/ahora.json` | 20 min | Tarjeta «el cielo de Bogotá ahora» (METAR, UV, lluvia SAB, radar, GOES‑19, focos, sismos) |
 | `bicis/ahora.json` | 10 min | Estado de cada estación de bicicletas compartidas |
 | `bicis/serie-48h.ndjson.gz` | 10 min | Las últimas 48 h de estados, una fila por corrida |
+| `canales/ahora.json` | 10 min | Nivel de quebradas, ríos y canales en los sensores del SAB, frente a la cota de desborde y los umbrales del IDIGER |
+| `canales/serie-48h.ndjson.gz` | 10 min | Las últimas 48 h de niveles, una fila por corrida |
 | `pronostico/ahora.json` | 60 min | Pronóstico de temperatura y lluvia a 48 h en El Dorado |
 | `pronostico/emitidos-5d.ndjson.gz` | 60 min | Cada pronóstico emitido en los últimos 5 días, con 55 h |
 | `pronostico/acierto.json` | 1 día | Cuánto acertó el pronóstico contra el METAR de El Dorado |
 | `aire/pronostico.json` | 60 min | PM2,5 de CAMS a 5 días, un valor para toda la ciudad |
 
-Los días cerrados van como activos de Releases mensuales: `bicis-AAAA-MM` y `pronostico-AAAA-MM`, un `ndjson.gz` por día de Bogotá. Las huellas están en `manifiestos/<release>.json`. Los activos de Releases no mandan cabeceras CORS: sirven para archivo y análisis, no para leerlos desde el navegador.
+Los días cerrados van como activos de Releases mensuales: `bicis-AAAA-MM`, `canales-AAAA-MM` y `pronostico-AAAA-MM`, un `ndjson.gz` por día de Bogotá. Las huellas están en `manifiestos/<release>.json`. Los activos de Releases no mandan cabeceras CORS: sirven para archivo y análisis, no para leerlos desde el navegador.
 
 ## Convenciones comunes
 
@@ -181,12 +183,51 @@ Califica cada día de Bogotá cerrado, un día después, contra el METAR de El D
 - Un solo valor por hora para toda la ciudad, desde la hora en curso hasta donde llegue la última corrida de CAMS, como mucho 120 horas. El 24 nov 2026 a las 18:40 de Bogotá llegaba a 110 horas. La celda de CAMS mide unos 45 km: no sirve por barrio ni por localidad y no se pinta por barrio.
 - No hay marcador de acierto: lo medido de la RMCAB no declara licencia. No es un índice oficial ni una alerta.
 
+## `canales/ahora.json`, esquema `bogotwin/canales/1`
+
+Sensores de nivel del Sistema de Alerta de Bogotá (SAB) del IDIGER. Lo arma `pipelines/canales/canales.py` del repo del gemelo, que también guarda la evidencia de qué mide la lectura y de la licencia.
+
+```json
+{
+  "esquema": "bogotwin/canales/1",
+  "generado": "2026-11-25T00:24:05Z",
+  "hora_dato": "2026-11-25T00:24:00Z",
+  "cadencia_min": 10,
+  "etiquetas": {"lectura_m": "medido", "espejo_msnm": "inferido", "borde_libre_m": "inferido", "desborde_msnm": "de_fuente", "umbrales_msnm": "de_fuente"},
+  "campos": ["lectura_m", "espejo_msnm", "borde_libre_m", "min_desde_lectura", "dudoso"],
+  "sensores": [{"id": "63", "nombre": "San Francisco", "cauce": "QUEBRADA LIMAS", "localidad": "CIUDAD BOLIVAR", "lat": 4.56235, "lon": -74.148869,
+                "tipo_lectura": 2, "cota_sensor_msnm": 2577.5, "fondo_msnm": 2568.96, "desborde_msnm": 2571.9, "umbrales_msnm": null,
+                "hora": "2026-11-25T00:21:00Z", "v": [8.03, 2569.47, 2.43, 4, 0]}],
+  "totales": {"sensores": 13, "con_lectura": 13, "con_umbrales": 7, "dudosos": 0, "sin_lectura_acueducto": 5, "tipo_desconocido": 0},
+  "fuente": {"nombre": "IDIGER, Sistema de Alerta de Bogotá (SAB), sensores de nivel", "licencia": {"nombre": "CC BY-NC 4.0", "…": "…"}},
+  "corrida": {"motor": "…", "registro": "…", "commit_codigo": "…"}
+}
+```
+
+(Ejemplo tomado de una corrida local del 24 nov 2026, 7:24 p. m. de Bogotá.)
+
+- `tipo_lectura` 1: la lectura es la altura del agua sobre el fondo; espejo = `fondo_msnm` + lectura. Tipo 2: es la distancia del sensor al agua; espejo = `cota_sensor_msnm` − lectura. Es la cuenta del visor oficial del SAB. Otro tipo no se interpreta y va sin espejo ni borde libre.
+- `borde_libre_m` = `desborde_msnm` − espejo: lo que le falta al agua para llegar a la cota de desborde.
+- `umbrales_msnm` (bajo, medio, alto) son los del IDIGER y solo algunos sensores los tienen. Si no, va `null`: no se inventan.
+- `dudoso` = 1 si la lectura es negativa o deja el agua más de 1 m bajo el fondo o más de 3 m sobre el desborde.
+- Las estaciones del acueducto que el SAB lista sin lectura no entran; se cuentan en `sin_lectura_acueducto`.
+- No es un sistema de alerta. Las alertas oficiales son del IDIGER.
+- Peso medido el 24 nov 2026: unos 6 KB, unos 2 KB con gzip.
+
+## `canales/serie-48h.ndjson.gz`
+
+Igual que la de bicis: una línea `{"t", "ids", "v"}` por corrida, las últimas 48 h, con `v[i]` en el orden de `campos`. Los huecos quedan como huecos.
+
+## Día cerrado de canales (Release `canales-AAAA-MM`)
+
+`canales-AAAA-MM-DD.ndjson.gz`. Primera línea `{"tipo": "cabecera", "esquema": "bogotwin/canales/1/dia", "fecha_bogota", "campos", "sensores": [{id, nombre, cauce, localidad, lat, lon, tipo_lectura, cota_sensor_msnm, fondo_msnm, desborde_msnm, umbrales_msnm}], "fuente", "filas", "filas_esperadas", …}`; luego una línea `{"tipo": "fila", "t", "ids", "v"}` por corrida de ese día de Bogotá.
+
 ## `manifiestos/<release>.json`
 
 Una entrada por día cerrado: `{nombre, fecha_bogota, bytes, sha256, filas o emisiones, fuente, licencia, script, corrida, url}`. `sha256sum` del activo descargado debe dar la misma huella.
 
 ## Licencias
 
-Las de cada fuente, con crédito: GBFS de bicicletas CC0 1.0; Open-Meteo y CAMS CC BY 4.0 (la API gratis de Open-Meteo es para uso no comercial); METAR dominio público (NOAA/NWS); lluvia del SAB del IDIGER CC BY‑NC 4.0. Lo NC y lo SA nunca se combinan en un mismo cálculo. Los cálculos nuestros (acierto) van con CC BY 4.0 citando sus fuentes.
+Las de cada fuente, con crédito: GBFS de bicicletas CC0 1.0; Open-Meteo y CAMS CC BY 4.0 (la API gratis de Open-Meteo es para uso no comercial); METAR dominio público (NOAA/NWS); lluvia y nivel del SAB del IDIGER CC BY‑NC 4.0 (el nivel no tiene ficha propia en Datos Abiertos Bogotá; le aplicamos la del SAB, y la evidencia está en `pipelines/canales/evidencia-licencia.json` del repo del gemelo). Lo NC y lo SA nunca se combinan en un mismo cálculo. Los cálculos nuestros (acierto) van con CC BY 4.0 citando sus fuentes.
 
 Código bajo AGPL‑3.0.

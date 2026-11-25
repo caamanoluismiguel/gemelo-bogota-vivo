@@ -1,6 +1,8 @@
 # Cosecha de datos vivos de Bogotwin. Arma y publica en GitHub Pages, SIN commit de datos:
 #   cielo/       tarjeta «el cielo de Bogotá ahora»   cada 20 min
 #   bicis/       bicicletas compartidas (GBFS 3.0)     cada 10 min
+#   canales/     nivel de quebradas, ríos y canales     cada 10 min
+#                (SAB del IDIGER, CC BY-NC 4.0)
 #   pronostico/  pronóstico a 48 h y su acierto        cada hora; el acierto una vez al día
 #   aire/        PM2,5 de CAMS a 5 días                cada hora
 #   indice.json  cada archivo con bytes, sha256 y hora
@@ -13,7 +15,7 @@
 # publicado (recuperar.py, con sha256) y, si no puede, NO publica: el sitio anterior queda.
 # Cada parte decide sola si le toca según la edad de su archivo.
 #
-# Días cerrados (bicis y pronósticos emitidos) van como activos de Releases mensuales con
+# Días cerrados (bicis, canales y pronósticos emitidos) van como activos de Releases mensuales con
 # sha256. A git solo entra el manifiesto mensual, como mucho una vez al día.
 #
 # Minutos: unas 144 corridas al día de 2 a 3 min cobrados. En repo público son gratis
@@ -46,6 +48,7 @@ jobs:
     outputs:
       cielo: ${{ steps.cielo.outcome }}
       bicis: ${{ steps.bicis.outcome }}
+      canales: ${{ steps.canales.outcome }}
       pronostico: ${{ steps.pronostico.outcome }}
       acierto: ${{ steps.acierto.outcome }}
       releases: ${{ steps.releases.outcome }}
@@ -87,6 +90,14 @@ jobs:
         id: bicis
         continue-on-error: true
         run: python3 -I codigo/pipelines/bicis/bicis.py --sitio _site --cierres _cierres --manifiestos vivo/manifiestos
+
+      - name: Nivel de canales (cada 10 min)
+        id: canales
+        continue-on-error: true
+        run: |
+          # Mientras el pipeline no esté en main del repo del gemelo, el paso se salta sin fallar.
+          if [ ! -f codigo/pipelines/canales/canales.py ]; then echo "::notice::Aún no hay pipelines/canales en el gemelo"; exit 0; fi
+          python3 -I codigo/pipelines/canales/canales.py --sitio _site --cierres _cierres --manifiestos vivo/manifiestos
 
       - name: Pronóstico y aire (cada hora)
         id: pronostico
@@ -171,15 +182,16 @@ jobs:
         env:
           CIELO: ${{ needs.armar.outputs.cielo }}
           BICIS: ${{ needs.armar.outputs.bicis }}
+          CANALES: ${{ needs.armar.outputs.canales }}
           PRONOSTICO: ${{ needs.armar.outputs.pronostico }}
           ACIERTO: ${{ needs.armar.outputs.acierto }}
           RELEASES: ${{ needs.armar.outputs.releases }}
           ARMAR: ${{ needs.armar.result }}
           PUBLICAR: ${{ needs.publicar.result }}
         run: |
-          echo "armar=$ARMAR publicar=$PUBLICAR cielo=$CIELO bicis=$BICIS pronostico=$PRONOSTICO acierto=$ACIERTO releases=$RELEASES"
+          echo "armar=$ARMAR publicar=$PUBLICAR cielo=$CIELO bicis=$BICIS canales=$CANALES pronostico=$PRONOSTICO acierto=$ACIERTO releases=$RELEASES"
           mal=0
-          for v in "$CIELO" "$BICIS" "$PRONOSTICO" "$ACIERTO" "$RELEASES"; do [ "$v" = "failure" ] && mal=1; done
+          for v in "$CIELO" "$BICIS" "$CANALES" "$PRONOSTICO" "$ACIERTO" "$RELEASES"; do [ "$v" = "failure" ] && mal=1; done
           [ "$ARMAR" != "success" ] && mal=1
           [ "$PUBLICAR" != "success" ] && mal=1
           exit $mal
