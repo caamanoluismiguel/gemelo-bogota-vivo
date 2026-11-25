@@ -5,6 +5,7 @@
 #                (SAB del IDIGER, CC BY-NC 4.0)
 #   pronostico/  pronóstico a 48 h y su acierto        cada hora; el acierto una vez al día
 #   aire/        PM2,5 de CAMS a 5 días                cada hora
+#   frecuencia/  buses troncales programados (GTFS de TransMilenio, CC BY-SA 4.0)  una vez al día
 #   indice.json  cada archivo con bytes, sha256 y hora
 #
 # Motor: el Worker gemelo-bogota-asistente (repo principal, worker/src/cosecha.ts) lanza
@@ -108,6 +109,18 @@ jobs:
         id: acierto
         continue-on-error: true
         run: python3 -I codigo/pipelines/pronostico/acierto.py --sitio _site
+
+      - name: Buses troncales programados (una vez al día)
+        id: frecuencia
+        continue-on-error: true
+        run: |
+          # GTFS de TransMilenio (CC BY-SA 4.0). Solo baja el zip si salió uno nuevo.
+          if [ ! -f codigo/pipelines/frecuencia/frecuencia.py ]; then echo "::notice::Aún no hay pipelines/frecuencia en el gemelo"; exit 0; fi
+          if ! python3 -I codigo/pipelines/vivo/toca.py _site/frecuencia/troncal.json 1440; then
+            echo "Todavía no toca."; exit 0
+          fi
+          mkdir -p _site/frecuencia
+          python3 -I codigo/pipelines/frecuencia/frecuencia.py --salida _site/frecuencia
 
       - name: Subir días cerrados a las Releases
         id: releases
