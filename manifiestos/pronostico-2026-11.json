@@ -34,6 +34,22 @@
         "commit_codigo": "7e834fcd1861b5a4416429f510bb5092bf2540cf"
       },
       "url": "https://github.com/caamanoluismiguel/gemelo-bogota-vivo/releases/download/pronostico-2026-11/pronostico-2026-11-25.ndjson.gz"
+    },
+    {
+      "nombre": "pronostico-2026-11-26.ndjson.gz",
+      "fecha_bogota": "2026-11-26",
+      "bytes": 2097,
+      "sha256": "92081943f834e27f8b02ae70ce428ada9f48e9763ec71e6a3682feb53f0cde1c",
+      "emisiones": 24,
+      "fuente": "https://api.open-meteo.com/v1/forecast",
+      "licencia": "CC BY 4.0",
+      "script": "pipelines/pronostico/pronostico.py (repo gemelo-bogota)",
+      "corrida": {
+        "motor": "worker-cloudflare",
+        "registro": "https://github.com/caamanoluismiguel/gemelo-bogota-vivo/actions/runs/45947252051",
+        "commit_codigo": "27d2fde63b436f390facd435159377c727f54af0"
+      },
+      "url": "https://github.com/caamanoluismiguel/gemelo-bogota-vivo/releases/download/pronostico-2026-11/pronostico-2026-11-26.ndjson.gz"
     }
   ]
 }
