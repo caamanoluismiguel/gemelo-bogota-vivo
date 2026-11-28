@@ -53,6 +53,23 @@
         "commit_codigo": "27d2fde63b436f390facd435159377c727f54af0"
       },
       "url": "https://github.com/caamanoluismiguel/gemelo-bogota-vivo/releases/download/canales-2026-11/canales-2026-11-26.ndjson.gz"
+    },
+    {
+      "nombre": "canales-2026-11-27.ndjson.gz",
+      "fecha_bogota": "2026-11-27",
+      "bytes": 9984,
+      "sha256": "6b915b28810b58ae2585a2ef1788c3eba5cae1bb61ad5fcc88327cfeaa19b73e",
+      "filas": 143,
+      "filas_esperadas": 144,
+      "fuente": "https://app.sab.gov.co//sab/ServletTipoSensores?idtiposensor=3",
+      "licencia": "CC BY-NC 4.0",
+      "script": "pipelines/canales/canales.py (repo gemelo-bogota)",
+      "corrida": {
+        "motor": "worker-cloudflare",
+        "registro": "https://github.com/caamanoluismiguel/gemelo-bogota-vivo/actions/runs/46110151387",
+        "commit_codigo": "fccb094cb0e0b7d06434e0e68e379b9500f0ea1e"
+      },
+      "url": "https://github.com/caamanoluismiguel/gemelo-bogota-vivo/releases/download/canales-2026-11/canales-2026-11-27.ndjson.gz"
     }
   ]
 }
